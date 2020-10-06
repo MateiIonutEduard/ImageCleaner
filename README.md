@@ -1,2 +1,2 @@
 # ImageCleaner
-It is a simple tool that clean the scratches from images.
+It is a simple tool that clean the scratches from images.<br>
