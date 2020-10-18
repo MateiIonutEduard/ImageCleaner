@@ -2,6 +2,7 @@
 using System.IO;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
@@ -27,6 +28,7 @@ namespace ImageCleaner
 
         List<PointF> map = new List<PointF>();
         Random rand = new Random(System.Environment.TickCount);
+        CancellationTokenSource token;
 
         string newPath = string.Empty;
         List<PointF> points = new List<PointF>();
@@ -38,6 +40,7 @@ namespace ImageCleaner
             hdc = pictureBox1.Image;
             vdc = pictureBox1.Image;
 
+            token = new CancellationTokenSource();
             script = File.ReadAllText("shaders/fix.cl");
             path = @"data/init.bmp";
             SetupDevice();
@@ -205,11 +208,11 @@ namespace ImageCleaner
             }
         }
 
-        private void button2_Click(object sender, EventArgs e)
+        private async void button2_Click(object sender, EventArgs e)
         {
             // Creates all requirements to start correction...
             
-            Task.Run(() =>
+            await Task.Run(() =>
             {
                 O = CenterOf();
                 radius = MaxRadius();
@@ -222,10 +225,10 @@ namespace ImageCleaner
 
                 g.FillEllipse(Brushes.Red, new Rectangle(X, Y, 10, 10));
                 pictureBox1.Invalidate();
-            });
+            }, token.Token);
         }
 
-        private void button1_Click(object sender, EventArgs e)
+        private async void button1_Click(object sender, EventArgs e)
         {
             // Fix up the image and write new file to disk.
             Stopwatch sw = new Stopwatch();
@@ -235,17 +238,17 @@ namespace ImageCleaner
                 return;
             }
 
-            Task.Run(() =>
+            await Task.Run(() =>
             {
                 sw.Start();
                 FixImage();
                 sw.Stop();
-            }).ContinueWith(t =>
+            }, token.Token).ContinueWith(t =>
             {
                 TimeSpan ts = sw.Elapsed;
                 MessageBox.Show($"Work Complete! Total elapsed time... {ts.Minutes}:{ts.Seconds}:{ts.Milliseconds}", "Image Cleaner", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                Process.Start(newPath);
-            });
+                Process.Start(Path.GetFullPath(newPath));
+            }, token.Token);
         }
 
         private void pictureBox1_MouseDown(object sender, MouseEventArgs e)
@@ -280,6 +283,15 @@ namespace ImageCleaner
                 g.DrawLine(Pens.White, points[i], points[i + 1]);
 
             pictureBox1.Invalidate();
+        }
+
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            if(!token.IsCancellationRequested)
+            {
+                token.Cancel();
+                e.Cancel = false;
+            }
         }
 
         private void fillToolStripMenuItem_Click(object sender, EventArgs e)
